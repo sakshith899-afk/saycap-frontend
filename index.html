@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAYCAP — AI Caption Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg: #F5F3EE;
+            --surface: #FFFFFF;
+            --surface-2: #EFECE5;
+            --border: #E2DDD4;
+            --border-strong: #C9C3B6;
+            --text-1: #1A1916;
+            --text-2: #5C5A54;
+            --text-3: #9A9891;
+            --amber: #C17B3F;
+            --amber-light: #F7EAD8;
+            --amber-hover: #A5662F;
+            --amber-dim: rgba(193,123,63,0.12);
+            --teal: #3D7A6E;
+            --teal-light: #E0EDEA;
+            --teal-dim: rgba(61,122,110,0.12);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg);
+            color: var(--text-1);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* ── AUTH UI ── */
+        .auth-container { position: absolute; top: 24px; right: 24px; z-index: 100; }
+
+        .login-btn {
+            padding: 10px 18px;
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(10px);
+            color: var(--text-1);
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .login-btn:hover { border-color: var(--amber); color: var(--amber); transform: translateY(-2px); }
+
+        .profile-wrap { position: relative; display: none; }
+        .user-profile { width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); background: transparent; overflow: hidden; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .user-profile:hover { border-color: var(--amber); transform: scale(1.05); }
+        .user-profile img { width: 100%; height: 100%; object-fit: cover; }
+
+        .profile-menu {
+            position: absolute; top: calc(100% + 12px); right: 0;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.1); padding: 8px; width: 180px;
+            display: flex; flex-direction: column; gap: 4px;
+            opacity: 0; visibility: hidden; transform: translateY(-10px);
+            transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
+        }
+        .profile-menu.show { opacity: 1; visibility: visible; transform: translateY(0); }
+        .profile-menu button {
+            background: transparent; border: none; padding: 12px 14px; text-align: left;
+            font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 800;
+            color: var(--text-2); border-radius: 8px; cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .profile-menu button:hover { background: var(--amber-light); color: var(--amber); }
+        .profile-menu button svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.5; }
+
+        /* ── BACKGROUND ── */
+        .bg-orbs { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+        .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.35; animation: orbFloat linear infinite; }
+        .orb-1 { width: 500px; height: 500px; background: radial-gradient(circle, #D4956A, transparent); top: -150px; left: -100px; animation-duration: 20s; }
+        .orb-2 { width: 400px; height: 400px; background: radial-gradient(circle, #6AAFA5, transparent); bottom: -100px; right: -80px; animation-duration: 25s; animation-direction: reverse; }
+        .orb-3 { width: 300px; height: 300px; background: radial-gradient(circle, #C4A882, transparent); top: 50%; left: 60%; animation-duration: 18s; }
+
+        @keyframes orbFloat {
+            0%, 100% { transform: translate(0,0) scale(1); }
+            33% { transform: translate(30px,-40px) scale(1.05); }
+            66% { transform: translate(-20px,30px) scale(0.95); }
+        }
+
+        /* ── PAGE LAYOUT ── */
+        .page { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 48px 20px 80px; }
+        .container { width: 100%; max-width: 1000px; }
+
+        header { text-align: center; margin-bottom: 52px; animation: slideDown 0.8s cubic-bezier(0.16,1,0.3,1) both; }
+
+        .badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; background: var(--amber-light); border: 1px solid rgba(193,123,63,0.3); border-radius: 99px; font-size: 0.72rem; font-weight: 800; color: var(--amber); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 20px; }
+        .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); animation: pulse 2s ease infinite; }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
+
+        h1 { font-family: 'Playfair Display', serif; font-size: clamp(3rem,8vw,5.5rem); font-weight: 900; line-height: 1; color: var(--text-1); letter-spacing: -0.03em; margin-bottom: 16px; }
+        h1 span { color: var(--amber); position: relative; display: inline-block; }
+        h1 span::after { content: ''; position: absolute; bottom: 4px; left: 0; right: 0; height: 4px; background: var(--amber); border-radius: 2px; transform: scaleX(0); transform-origin: left; animation: underlineReveal 0.8s cubic-bezier(0.16,1,0.3,1) 0.8s both; }
+
+        @keyframes underlineReveal { to { transform: scaleX(1); } }
+
+        .tagline { font-size: 1.05rem; color: var(--text-2); font-weight: 500; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-24px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.95) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+        /* ── MAIN CARD ── */
+        .main-card {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.9);
+            border-radius: 28px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06), 0 32px 64px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,1);
+            overflow: hidden;
+            animation: slideUp 0.9s cubic-bezier(0.16,1,0.3,1) 0.2s both;
+        }
+
+        /* ── WIZARD LAYOUT ── */
+        .wizard-grid {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            min-height: 420px;
+        }
+
+        /* ── SIDEBAR ── */
+        .wiz-sidebar {
+            background: var(--surface-2);
+            border-right: 1px solid var(--border);
+            padding: 28px 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .wiz-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px 20px;
+            cursor: pointer;
+            transition: background 0.15s;
+            border-left: 3px solid transparent;
+            position: relative;
+        }
+        .wiz-step:hover { background: rgba(255,255,255,0.6); }
+        .wiz-step.active { background: var(--surface); border-left-color: var(--amber); }
+        .wiz-step.done { cursor: pointer; }
+
+        .wiz-dot {
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            border: 1.5px solid var(--border-strong);
+            background: var(--surface);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 9px; font-weight: 900;
+            color: var(--text-3);
+            flex-shrink: 0;
+            margin-top: 1px;
+            transition: all 0.2s;
+        }
+        .wiz-step.active .wiz-dot { background: var(--amber); border-color: var(--amber); color: white; }
+        .wiz-step.done .wiz-dot { background: var(--teal); border-color: var(--teal); color: white; font-size: 11px; }
+
+        .wiz-step-info { flex: 1; min-width: 0; }
+        .wiz-step-label { font-size: 0.8rem; font-weight: 800; color: var(--text-3); transition: color 0.15s; }
+        .wiz-step.active .wiz-step-label { color: var(--amber); }
+        .wiz-step.done .wiz-step-label { color: var(--teal); }
+        .wiz-step-val { font-size: 0.7rem; color: var(--text-3); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+        .wiz-step.done .wiz-step-val { color: var(--teal); opacity: 0.85; }
+        .wiz-step.active .wiz-step-val { color: var(--amber); }
+
+        /* connector line between steps */
+        .wiz-connector { width: 1.5px; height: 12px; background: var(--border); margin-left: 31px; transition: background 0.2s; }
+        .wiz-connector.done { background: var(--teal); }
+
+        /* ── RIGHT PANEL ── */
+        .wiz-panel {
+            padding: 32px 36px;
+            display: none;
+            flex-direction: column;
+        }
+        .wiz-panel.active { display: flex; }
+
+        .panel-step-num { font-size: 0.68rem; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px; }
+        .panel-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 700; color: var(--text-1); margin-bottom: 6px; }
+        .panel-sub { font-size: 0.82rem; color: var(--text-2); font-weight: 500; line-height: 1.6; margin-bottom: 22px; }
+
+        /* ── UPLOAD ZONE ── */
+        .upload-zone {
+            border: 2px dashed var(--border-strong);
+            border-radius: 18px;
+            padding: 40px 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+            background: linear-gradient(135deg, rgba(245,243,238,0.8), rgba(239,236,229,0.8));
+            position: relative;
+            overflow: hidden;
+        }
+        .upload-zone::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at center, var(--amber-dim), transparent 70%); opacity: 0; transition: opacity 0.3s; }
+        .upload-zone:hover::before, .upload-zone.drag-over::before { opacity: 1; }
+        .upload-zone:hover, .upload-zone.drag-over { border-color: var(--amber); transform: translateY(-2px); box-shadow: 0 12px 40px var(--amber-dim); }
+        .upload-zone.has-file { border-style: solid; border-color: var(--teal); background: linear-gradient(135deg, rgba(224,237,234,0.5), rgba(207,231,226,0.5)); }
+        .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+        .upload-icon-wrap {
+            width: 64px; height: 64px;
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 18px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+            position: relative; z-index: 1;
+        }
+        .upload-zone:hover .upload-icon-wrap, .upload-zone.drag-over .upload-icon-wrap { background: var(--amber); border-color: var(--amber); transform: scale(1.08) rotate(-5deg); }
+        .upload-zone.has-file .upload-icon-wrap { background: var(--teal); border-color: var(--teal); }
+        .upload-icon-wrap svg { width: 28px; height: 28px; stroke: var(--amber); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.3s; }
+        .upload-zone:hover .upload-icon-wrap svg, .upload-zone.drag-over .upload-icon-wrap svg { stroke: white; }
+        .upload-zone.has-file .upload-icon-wrap svg { stroke: white; }
+
+        .upload-text { position: relative; z-index: 1; }
+        .upload-title { font-size: 1rem; font-weight: 800; color: var(--text-1); margin-bottom: 4px; }
+        .upload-title em { font-style: normal; color: var(--amber); }
+        .upload-zone.has-file .upload-title { color: var(--teal); }
+        .upload-sub { font-size: 0.78rem; color: var(--text-3); font-weight: 600; line-height: 1.5; }
+
+        .upload-pills { display: flex; gap: 6px; position: relative; z-index: 1; }
+        .upload-pill { padding: 3px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 99px; font-size: 0.68rem; font-weight: 800; color: var(--text-3); letter-spacing: 0.05em; }
+
+        /* ── LANGUAGE CARDS ── */
+        .lang-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .lang-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 13px;
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            background: var(--surface);
+            transition: all 0.18s cubic-bezier(0.16,1,0.3,1);
+        }
+        .lang-card:hover { border-color: var(--amber); transform: translateY(-1px); box-shadow: 0 4px 12px var(--amber-dim); }
+        .lang-card.sel { border-color: var(--amber); background: var(--amber-light); }
+
+        .lang-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            border: 1.5px solid var(--border-strong);
+            flex-shrink: 0;
+            transition: all 0.18s;
+        }
+        .lang-card.sel .lang-dot { background: var(--amber); border-color: var(--amber); }
+
+        .lang-card-info { flex: 1; min-width: 0; }
+        .lang-card-name { font-size: 0.82rem; font-weight: 800; color: var(--text-1); }
+        .lang-card.sel .lang-card-name { color: var(--amber-hover); }
+        .lang-card-script { font-size: 0.72rem; color: var(--text-3); font-weight: 600; margin-top: 1px; }
+        .lang-card.sel .lang-card-script { color: var(--amber); }
+
+        /* ── MODE CARDS ── */
+        .mode-list { display: flex; flex-direction: column; gap: 9px; }
+
+        .mode-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 16px;
+            border: 1.5px solid var(--border);
+            border-radius: 14px;
+            cursor: pointer;
+            background: var(--surface-2);
+            transition: all 0.18s cubic-bezier(0.16,1,0.3,1);
+        }
+        .mode-card:hover { border-color: var(--amber); background: var(--surface); transform: translateY(-1px); box-shadow: 0 4px 14px var(--amber-dim); }
+        .mode-card.sel { border-color: var(--amber); background: var(--amber-light); }
+
+        .mode-icon {
+            width: 40px; height: 40px;
+            border-radius: 11px;
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.18s;
+        }
+        .mode-card.sel .mode-icon { background: white; border-color: var(--amber); }
+        .mode-icon svg { width: 18px; height: 18px; stroke: var(--text-3); fill: none; stroke-width: 1.8; transition: stroke 0.18s; }
+        .mode-card.sel .mode-icon svg { stroke: var(--amber); }
+
+        .mode-body { flex: 1; min-width: 0; }
+        .mode-name { font-size: 0.9rem; font-weight: 900; color: var(--text-1); margin-bottom: 3px; }
+        .mode-card.sel .mode-name { color: var(--amber-hover); }
+        .mode-desc { font-size: 0.76rem; color: var(--text-2); font-weight: 500; line-height: 1.55; }
+        .mode-card.sel .mode-desc { color: var(--text-2); }
+        .mode-eg { font-size: 0.73rem; color: var(--text-3); font-weight: 700; margin-top: 4px; font-style: italic; }
+        .mode-card.sel .mode-eg { color: var(--amber); }
+
+        .mode-check {
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            border: 1.5px solid var(--border-strong);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.18s;
+        }
+        .mode-card.sel .mode-check { background: var(--amber); border-color: var(--amber); }
+        .mode-check svg { width: 10px; height: 10px; stroke: white; fill: none; stroke-width: 2.5; opacity: 0; transition: opacity 0.15s; }
+        .mode-card.sel .mode-check svg { opacity: 1; }
+
+        /* ── CONFIRM STEP ── */
+        .confirm-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .confirm-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .confirm-key { font-size: 0.75rem; color: var(--text-3); font-weight: 700; }
+        .confirm-right { display: flex; align-items: center; gap: 12px; }
+        .confirm-val { font-size: 0.85rem; font-weight: 800; color: var(--text-1); }
+        .confirm-edit { font-size: 0.72rem; color: var(--amber); background: none; border: none; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 800; padding: 0; }
+        .confirm-edit:hover { color: var(--amber-hover); }
+
+        /* ── BUTTONS ── */
+        .wiz-next-btn {
+            margin-top: 18px;
+            padding: 12px 28px;
+            background: var(--amber);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 900;
+            cursor: pointer;
+            align-self: flex-start;
+            transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
+            box-shadow: 0 4px 14px rgba(193,123,63,0.3);
+        }
+        .wiz-next-btn:hover { background: var(--amber-hover); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(193,123,63,0.35); }
+        .wiz-next-btn:disabled { background: var(--border-strong); color: var(--text-3); cursor: not-allowed; box-shadow: none; transform: none; }
+
+        .wiz-back-btn {
+            margin-top: 18px;
+            padding: 12px 20px;
+            background: transparent;
+            color: var(--text-3);
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 800;
+            cursor: pointer;
+            align-self: flex-start;
+            transition: all 0.2s;
+        }
+        .wiz-back-btn:hover { border-color: var(--border-strong); color: var(--text-2); }
+
+        .btn-row { display: flex; gap: 10px; margin-top: 0; }
+
+        .gen-big {
+            width: 100%;
+            padding: 16px 24px;
+            background: var(--amber);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 1rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+            box-shadow: 0 4px 16px rgba(193,123,63,0.3);
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            position: relative; overflow: hidden;
+        }
+        .gen-big::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: left 0.5s; }
+        .gen-big:hover::before { left: 100%; }
+        .gen-big:hover { background: var(--amber-hover); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(193,123,63,0.4); }
+        .gen-big svg { width: 18px; height: 18px; stroke: white; fill: none; stroke-width: 2; }
+
+        /* ── PROCESSING ── */
+        #processing-view { display: none; flex-direction: column; align-items: center; justify-content: center; padding: 80px 40px; gap: 28px; text-align: center; min-height: 420px; }
+        .wave-loader { display: flex; gap: 6px; align-items: center; height: 48px; }
+        .wave-bar { width: 5px; border-radius: 3px; background: var(--amber); animation: wave 1.2s ease-in-out infinite; }
+        .wave-bar:nth-child(1) { animation-delay: 0s; }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+        .wave-bar:nth-child(6) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(7) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(8) { animation-delay: 0.1s; }
+        @keyframes wave { 0%, 100% { height: 8px; opacity: 0.4; } 50% { height: 40px; opacity: 1; } }
+        .processing-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 700; color: var(--text-1); }
+        .processing-steps { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 360px; }
+        .proc-step { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface-2); border-radius: 10px; font-size: 0.82rem; font-weight: 700; color: var(--text-3); transition: all 0.4s ease; }
+        .proc-step.active { background: var(--amber-light); color: var(--amber); }
+        .proc-step.done { background: var(--teal-light); color: var(--teal); }
+        .proc-step-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+        .proc-step.active .proc-step-dot { animation: pulse 1s ease infinite; }
+
+        /* ── RESULTS ── */
+        #results-view { display: none; flex-direction: column; gap: 24px; padding: 36px 40px; }
+        .results-top { display: flex; align-items: center; gap: 16px; }
+        .success-badge { display: flex; align-items: center; gap: 8px; padding: 8px 18px; background: var(--teal-light); border: 1.5px solid rgba(61,122,110,0.3); border-radius: 99px; font-size: 0.78rem; font-weight: 900; color: var(--teal); letter-spacing: 0.06em; text-transform: uppercase; animation: popIn 0.5s cubic-bezier(0.16,1,0.3,1); }
+        .success-badge svg { width: 16px; height: 16px; stroke: var(--teal); fill: none; stroke-width: 2.5; }
+        .results-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 700; color: var(--text-1); }
+        .srt-preview { background: #1A1916; border-radius: 14px; padding: 20px; position: relative; overflow: hidden; }
+        .srt-preview::before { content: 'SRT'; position: absolute; top: 12px; right: 16px; font-size: 0.65rem; font-weight: 900; letter-spacing: 0.1em; color: rgba(255,255,255,0.2); }
+        textarea { width: 100%; height: 200px; background: transparent; border: none; font-family: 'Courier New', monospace; font-size: 0.82rem; color: #C4A882; line-height: 1.8; resize: none; outline: none; }
+        .results-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .btn-dl { padding: 14px; background: var(--amber); color: white; border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.25s cubic-bezier(0.16,1,0.3,1); box-shadow: 0 4px 16px rgba(193,123,63,0.3); }
+        .btn-dl svg { width: 17px; height: 17px; stroke: white; fill: none; stroke-width: 2.5; }
+        .btn-dl:hover { background: var(--amber-hover); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(193,123,63,0.35); }
+        .btn-reset { padding: 14px; background: var(--surface); color: var(--text-2); border: 1.5px solid var(--border); border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .btn-reset:hover { border-color: var(--border-strong); color: var(--text-1); transform: translateY(-1px); }
+
+        /* ── FOOTER STATS ── */
+        .footer-stats { display: flex; align-items: center; justify-content: center; gap: 32px; margin-top: 36px; animation: slideUp 1s cubic-bezier(0.16,1,0.3,1) 0.5s both; }
+        .stat { text-align: center; }
+        .stat-num { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 700; color: var(--amber); line-height: 1; }
+        .stat-label { font-size: 0.72rem; font-weight: 700; color: var(--text-3); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 4px; }
+        .stat-divider { width: 1px; height: 40px; background: var(--border); }
+
+        /* ── INSTRUCTIONS ── */
+        .instructions-wrap { margin-top: 24px; animation: slideUp 1s cubic-bezier(0.16,1,0.3,1) 0.6s both; }
+        .instructions-toggle { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px 24px; background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); border: 1.5px solid var(--border); border-radius: 14px; font-family: 'Nunito', sans-serif; font-size: 0.88rem; font-weight: 800; color: var(--text-2); cursor: pointer; transition: all 0.25s cubic-bezier(0.16,1,0.3,1); }
+        .instructions-toggle:hover { background: rgba(255,255,255,0.9); border-color: var(--amber); color: var(--amber); transform: translateY(-1px); box-shadow: 0 4px 16px var(--amber-dim); }
+        .instructions-toggle svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2.5; transition: transform 0.3s cubic-bezier(0.16,1,0.3,1); }
+        .instructions-toggle.open svg:last-child { transform: rotate(180deg); }
+        .instructions-panel { background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: 20px; margin-top: 12px; overflow: hidden; max-height: 0; transition: max-height 0.5s cubic-bezier(0.16,1,0.3,1), opacity 0.3s ease; opacity: 0; }
+        .instructions-panel.open { max-height: 1200px; opacity: 1; }
+        .instructions-inner { padding: 36px 40px; }
+        .inst-title { font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 700; color: var(--text-1); margin-bottom: 6px; }
+        .inst-sub { font-size: 0.85rem; color: var(--text-2); font-weight: 500; margin-bottom: 32px; line-height: 1.6; }
+        .inst-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+        .inst-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+        .inst-card-icon { width: 36px; height: 36px; background: var(--amber-light); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+        .inst-card-icon svg { width: 18px; height: 18px; stroke: var(--amber); fill: none; stroke-width: 2; }
+        .inst-card h3 { font-size: 0.88rem; font-weight: 800; color: var(--text-1); margin-bottom: 6px; }
+        .inst-card p { font-size: 0.8rem; color: var(--text-2); font-weight: 500; line-height: 1.6; }
+        .inst-card .example { margin-top: 10px; padding: 8px 10px; background: var(--surface); border-radius: 8px; border-left: 3px solid var(--amber); font-size: 0.75rem; color: var(--text-2); font-weight: 600; }
+        .inst-card .example strong { color: var(--amber); }
+        .inst-tip { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; background: var(--amber-light); border: 1px solid rgba(193,123,63,0.25); border-radius: 12px; }
+        .tip-icon { width: 28px; height: 28px; background: var(--amber); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .tip-icon svg { width: 14px; height: 14px; stroke: white; fill: none; stroke-width: 2.5; }
+        .inst-tip p { font-size: 0.8rem; color: var(--text-1); font-weight: 600; line-height: 1.6; }
+        .inst-tip p strong { color: var(--amber); }
+
+        /* ── MODALS ── */
+        .modal-wrap { position: fixed; inset: 0; background: rgba(26,25,22,0.5); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
+        .modal-wrap.show { opacity: 1; visibility: visible; }
+        .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 36px 32px; max-width: 400px; width: 100%; box-shadow: 0 24px 64px rgba(0,0,0,0.15); transform: translateY(20px) scale(0.97); transition: transform 0.3s cubic-bezier(0.16,1,0.3,1); text-align: center; }
+        .modal-wrap.show .modal { transform: translateY(0) scale(1); }
+        .modal-icon-wrap { width: 56px; height: 56px; background: #FFF3E8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        .modal-icon-wrap svg { width: 26px; height: 26px; stroke: var(--amber); fill: none; stroke-width: 2; }
+        .modal-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; color: var(--text-1); margin-bottom: 10px; }
+        .modal-msg { font-size: 0.88rem; color: var(--text-2); font-weight: 500; line-height: 1.65; margin-bottom: 28px; }
+        .modal-btn { padding: 12px 36px; background: var(--amber); color: white; border: none; border-radius: 10px; font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 16px rgba(193,123,63,0.3); }
+        .modal-btn:hover { background: var(--amber-hover); transform: translateY(-1px); }
+
+        .history-modal { max-width: 600px; display: flex; flex-direction: column; text-align: left; max-height: 80vh; padding: 32px; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .history-header h2 { font-family: 'Playfair Display', serif; font-size: 1.6rem; color: var(--text-1); font-weight: 800; margin: 0; }
+        .close-history-btn { background: transparent; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-3); transition: all 0.2s; }
+        .close-history-btn:hover { background: var(--surface-2); color: var(--text-1); }
+        .history-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; }
+        .history-item-info { display: flex; flex-direction: column; gap: 4px; }
+        .history-item-name { font-weight: 800; font-size: 0.95rem; color: var(--text-1); }
+        .history-item-date { font-size: 0.75rem; color: var(--text-3); font-weight: 700; }
+        .history-dl-btn { background: var(--surface); color: var(--amber); border: 1.5px solid var(--border); padding: 8px 16px; border-radius: 10px; font-weight: 800; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; }
+        .history-dl-btn:hover { border-color: var(--amber); background: var(--amber-light); transform: translateY(-1px); }
+
+        @media (max-width: 700px) {
+            .wizard-grid { grid-template-columns: 1fr; }
+            .wiz-sidebar { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 0; }
+            .wiz-step { padding: 12px 14px; flex-direction: column; align-items: center; text-align: center; min-width: 80px; border-left: none; border-bottom: 3px solid transparent; }
+            .wiz-step.active { border-bottom-color: var(--amber); border-left: none; }
+            .wiz-connector { display: none; }
+            .wiz-panel { padding: 24px 20px; }
+            .lang-grid { grid-template-columns: repeat(2,1fr); }
+            .footer-stats { gap: 20px; }
+            h1 { font-size: 2.8rem; }
+            .inst-grid { grid-template-columns: 1fr; }
+            .instructions-inner { padding: 24px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="auth-container" id="auth-container">
+    <button class="login-btn" id="login-btn">
+        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+        Login
+    </button>
+    <div class="profile-wrap" id="profile-wrap">
+        <div class="user-profile" id="user-profile" title="Account Options">
+            <img id="profile-pic" src="" alt="Profile">
+        </div>
+        <div class="profile-menu" id="profile-menu">
+            <button id="menu-history-btn">
+                <svg viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                My Captions History
+            </button>
+            <button id="menu-logout-btn">
+                <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                Sign Out
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+</div>
+
+<div class="page">
+    <div class="container">
+
+        <header>
+            <div class="badge"><div class="badge-dot"></div> AI Powered · Internal Tool</div>
+            <h1>SAY<span>CAP</span></h1>
+            <p class="tagline">Upload your audio file and get perfectly timed, timeline-ready captions in seconds.</p>
+        </header>
+
+        <div class="main-card">
+
+            <!-- ═══ UPLOAD VIEW ═══ -->
+            <div id="upload-view">
+                <div class="wizard-grid">
+
+                    <!-- LEFT SIDEBAR -->
+                    <div class="wiz-sidebar">
+                        <div class="wiz-step active" id="ws1" onclick="wizGoTo(1)">
+                            <div class="wiz-dot" id="wd1">1</div>
+                            <div class="wiz-step-info">
+                                <div class="wiz-step-label">Upload audio</div>
+                                <div class="wiz-step-val" id="wv1">No file yet</div>
+                            </div>
+                        </div>
+                        <div class="wiz-connector" id="wc1"></div>
+                        <div class="wiz-step" id="ws2" onclick="wizGoTo(2)">
+                            <div class="wiz-dot" id="wd2">2</div>
+                            <div class="wiz-step-info">
+                                <div class="wiz-step-label">Language</div>
+                                <div class="wiz-step-val" id="wv2">Not selected</div>
+                            </div>
+                        </div>
+                        <div class="wiz-connector" id="wc2"></div>
+                        <div class="wiz-step" id="ws3" onclick="wizGoTo(3)">
+                            <div class="wiz-dot" id="wd3">3</div>
+                            <div class="wiz-step-info">
+                                <div class="wiz-step-label">Output mode</div>
+                                <div class="wiz-step-val" id="wv3">Not selected</div>
+                            </div>
+                        </div>
+                        <div class="wiz-connector" id="wc3"></div>
+                        <div class="wiz-step" id="ws4" onclick="wizGoTo(4)">
+                            <div class="wiz-dot" id="wd4">4</div>
+                            <div class="wiz-step-info">
+                                <div class="wiz-step-label">Generate</div>
+                                <div class="wiz-step-val" id="wv4">Review & go</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT PANELS -->
+                    <div style="overflow:hidden">
+
+                        <!-- PANEL 1: UPLOAD -->
+                        <div class="wiz-panel active" id="wp1">
+                            <div class="panel-step-num">Step 1 of 4</div>
+                            <div class="panel-title">Upload your audio</div>
+                            <div class="panel-sub">Drop an MP3 or M4A file. Up to 500MB. Long files are split automatically — no manual trimming needed.</div>
+                            <label class="upload-zone" id="drop-zone">
+                                <input type="file" id="file-input" accept=".mp3,.m4a,audio/mpeg,audio/mp4">
+                                <div class="upload-icon-wrap">
+                                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                </div>
+                                <div class="upload-text">
+                                    <p class="upload-title" id="upload-title"><em>Click to upload</em> or drag & drop</p>
+                                    <p class="upload-sub" id="upload-sub">Your audio stays private and is deleted from our servers immediately after processing.</p>
+                                </div>
+                                <div class="upload-pills">
+                                    <span class="upload-pill">MP3</span>
+                                    <span class="upload-pill">M4A</span>
+                                    <span class="upload-pill">Up to 500MB</span>
+                                </div>
+                            </label>
+                            <button class="wiz-next-btn" id="upload-next-btn" onclick="wizGoTo(2)" disabled>Continue →</button>
+                        </div>
+
+                        <!-- PANEL 2: LANGUAGE -->
+                        <div class="wiz-panel" id="wp2">
+                            <div class="panel-step-num">Step 2 of 4</div>
+                            <div class="panel-title">What language is spoken?</div>
+                            <div class="panel-sub">Select the primary language in your audio. SAYCAP natively handles code-mixed speech — Telugu+English, Hindi+English, and more.</div>
+                            <div class="lang-grid" id="lang-grid">
+                                <div class="lang-card sel" onclick="selLang(this,'Telugu','te-IN','తెలుగు')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Telugu</div><div class="lang-card-script">తెలుగు</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'Hindi','hi-IN','हिन्दी')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Hindi</div><div class="lang-card-script">हिन्दी</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'Tamil','ta-IN','தமிழ்')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Tamil</div><div class="lang-card-script">தமிழ்</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'Kannada','kn-IN','ಕನ್ನಡ')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Kannada</div><div class="lang-card-script">ಕನ್ನಡ</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'Malayalam','ml-IN','മലയാളം')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Malayalam</div><div class="lang-card-script">മലയാളം</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'Marathi','mr-IN','मराठी')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Marathi</div><div class="lang-card-script">मराठी</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'Bengali','bn-IN','বাংলা')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Bengali</div><div class="lang-card-script">বাংলা</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'Gujarati','gu-IN','ગુજરાતી')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Gujarati</div><div class="lang-card-script">ગુજરાતી</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'Punjabi','pa-IN','ਪੰਜਾਬੀ')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Punjabi</div><div class="lang-card-script">ਪੰਜਾਬੀ</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'Odia','od-IN','ଓଡ଼ିଆ')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">Odia</div><div class="lang-card-script">ଓଡ଼ିଆ</div></div>
+                                </div>
+                                <div class="lang-card" onclick="selLang(this,'English','en-IN','Indian accent')">
+                                    <div class="lang-dot"></div>
+                                    <div class="lang-card-info"><div class="lang-card-name">English (IN)</div><div class="lang-card-script">Indian accent</div></div>
+                                </div>
+                            </div>
+                            <div class="btn-row">
+                                <button class="wiz-back-btn" onclick="wizGoTo(1)">← Back</button>
+                                <button class="wiz-next-btn" onclick="wizGoTo(3)">Continue →</button>
+                            </div>
+                        </div>
+
+                        <!-- PANEL 3: OUTPUT MODE -->
+                        <div class="wiz-panel" id="wp3">
+                            <div class="panel-step-num">Step 3 of 4</div>
+                            <div class="panel-title">How should captions look?</div>
+                            <div class="panel-sub">This controls what language and script your caption text appears in. Every line in the SRT file follows this format.</div>
+                            <div class="mode-list" id="mode-list">
+
+                                <div class="mode-card sel" onclick="selMode(this,'phonetic')">
+                                    <div class="mode-icon">
+                                        <svg viewBox="0 0 24 24"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 00-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg>
+                                    </div>
+                                    <div class="mode-body">
+                                        <div class="mode-name">Phonetic</div>
+                                        <div class="mode-desc">Every spoken word is written in Roman (English) letters exactly as it sounds. Best for audiences who understand the language but can't read the native script.</div>
+                                        <div class="mode-eg" id="me-phonetic">"నమస్తే అందరికీ" → "Namaste andariki"</div>
+                                    </div>
+                                    <div class="mode-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </div>
+
+                                <div class="mode-card" onclick="selMode(this,'transcribe')">
+                                    <div class="mode-icon">
+                                        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                    </div>
+                                    <div class="mode-body">
+                                        <div class="mode-name">Native</div>
+                                        <div class="mode-desc">Output in the original language script with proper formatting. Everything stays in native characters. Best for formal content and native script readers.</div>
+                                        <div class="mode-eg" id="me-transcribe">"Hello everyone" → "హలో అందరికీ"</div>
+                                    </div>
+                                    <div class="mode-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </div>
+
+                                <div class="mode-card" onclick="selMode(this,'codemix')">
+                                    <div class="mode-icon">
+                                        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                                    </div>
+                                    <div class="mode-body">
+                                        <div class="mode-name" id="mn-codemix">Tenglish</div>
+                                        <div class="mode-desc" id="md-codemix">Telugu words stay in Telugu script. English words stay in English. This is exactly how mixed-language speech looks when written naturally — the most authentic output for code-switched audio.</div>
+                                        <div class="mode-eg" id="me-codemix">"నేను recently ఒక interview attend చేశాను"</div>
+                                    </div>
+                                    <div class="mode-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </div>
+
+                                <div class="mode-card" onclick="selMode(this,'translate')">
+                                    <div class="mode-icon">
+                                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+                                    </div>
+                                    <div class="mode-body">
+                                        <div class="mode-name">English</div>
+                                        <div class="mode-desc">Full translation into English. The AI understands meaning and rewrites every caption naturally in English. Best for English-only audiences or global reach.</div>
+                                        <div class="mode-eg" id="me-translate">"నేను చాలా కష్టపడ్డాను" → "I worked very hard"</div>
+                                    </div>
+                                    <div class="mode-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </div>
+
+                            </div>
+                            <div class="btn-row">
+                                <button class="wiz-back-btn" onclick="wizGoTo(2)">← Back</button>
+                                <button class="wiz-next-btn" onclick="wizGoTo(4)">Continue →</button>
+                            </div>
+                        </div>
+
+                        <!-- PANEL 4: GENERATE -->
+                        <div class="wiz-panel" id="wp4">
+                            <div class="panel-step-num">Step 4 of 4</div>
+                            <div class="panel-title">Ready to generate</div>
+                            <div class="panel-sub">Review your selections. Everything look right? Hit generate and your SRT file will be ready in moments.</div>
+                            <div class="confirm-list">
+                                <div class="confirm-row">
+                                    <span class="confirm-key">Audio file</span>
+                                    <div class="confirm-right">
+                                        <span class="confirm-val" id="cv-file">—</span>
+                                        <button class="confirm-edit" onclick="wizGoTo(1)">edit</button>
+                                    </div>
+                                </div>
+                                <div class="confirm-row">
+                                    <span class="confirm-key">Language</span>
+                                    <div class="confirm-right">
+                                        <span class="confirm-val" id="cv-lang">Telugu</span>
+                                        <button class="confirm-edit" onclick="wizGoTo(2)">edit</button>
+                                    </div>
+                                </div>
+                                <div class="confirm-row">
+                                    <span class="confirm-key">Output mode</span>
+                                    <div class="confirm-right">
+                                        <span class="confirm-val" id="cv-mode">Phonetic</span>
+                                        <button class="confirm-edit" onclick="wizGoTo(3)">edit</button>
+                                    </div>
+                                </div>
+                                <div class="confirm-row">
+                                    <span class="confirm-key">Output format</span>
+                                    <div class="confirm-right">
+                                        <span class="confirm-val">SRT — 3 words per caption</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="gen-big" id="gen-btn">
+                                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                Generate captions
+                            </button>
+                            <div class="btn-row" style="margin-top:10px">
+                                <button class="wiz-back-btn" onclick="wizGoTo(3)">← Back</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ PROCESSING VIEW ═══ -->
+            <div id="processing-view">
+                <div class="wave-loader">
+                    <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                    <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                    <div class="wave-bar"></div><div class="wave-bar"></div>
+                </div>
+                <p class="processing-title">Generating your captions…</p>
+                <div class="processing-steps">
+                    <div class="proc-step" id="step-1"><div class="proc-step-dot"></div>Uploading your file</div>
+                    <div class="proc-step" id="step-2"><div class="proc-step-dot"></div>Splitting into audio chunks</div>
+                    <div class="proc-step" id="step-3"><div class="proc-step-dot"></div>Running Speech-to-Text AI</div>
+                    <div class="proc-step" id="step-4"><div class="proc-step-dot"></div>Formatting SRT output</div>
+                </div>
+            </div>
+
+            <!-- ═══ RESULTS VIEW ═══ -->
+            <div id="results-view">
+                <div class="results-top">
+                    <div class="success-badge">
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                        Captions Ready
+                    </div>
+                    <p class="results-title">Your .srt file is ready to download</p>
+                </div>
+                <div class="srt-preview">
+                    <textarea id="caption-output" readonly placeholder="Your SRT captions will appear here…"></textarea>
+                </div>
+                <div class="results-actions">
+                    <button class="btn-dl" id="download-btn">
+                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download .srt File
+                    </button>
+                    <button class="btn-reset" id="reset-btn">Start Over</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- FOOTER STATS -->
+        <div class="footer-stats">
+            <div class="stat"><div class="stat-num">11</div><div class="stat-label">Languages</div></div>
+            <div class="stat-divider"></div>
+            <div class="stat"><div class="stat-num">500MB</div><div class="stat-label">Max File Size</div></div>
+            <div class="stat-divider"></div>
+            <div class="stat"><div class="stat-num">Sarvam</div><div class="stat-label">AI Model</div></div>
+            <div class="stat-divider"></div>
+            <div class="stat"><div class="stat-num">SRT</div><div class="stat-label">Output Format</div></div>
+        </div>
+
+        <!-- INSTRUCTIONS -->
+        <div class="instructions-wrap">
+            <button class="instructions-toggle" id="inst-toggle">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                How to use SAYCAP — Instructions & Guide
+                <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="instructions-panel" id="inst-panel">
+                <div class="instructions-inner">
+                    <p class="inst-title">How to use SAYCAP</p>
+                    <p class="inst-sub">SAYCAP converts your audio files into perfectly timed SRT caption files. These SRT files can be directly imported into Adobe Premiere Pro, CapCut, or any video editor — they will automatically sync with your video timeline.</p>
+                    <div class="inst-grid">
+                        <div class="inst-card">
+                            <div class="inst-card-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                            <h3>Upload MP3 or M4A</h3>
+                            <p>Export audio from your video editor and upload it here. Files up to 500MB are supported. Long files are automatically split into chunks.</p>
+                            <div class="example">Tip: Export at <strong>128kbps MP3</strong> for smallest file size</div>
+                        </div>
+                        <div class="inst-card">
+                            <div class="inst-card-icon"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+                            <h3>Choose output mode</h3>
+                            <p>Phonetic gives Roman script. Native gives original script. Tenglish/Hinglish gives mixed. English translates everything to English.</p>
+                            <div class="example">For most videos: <strong>Phonetic</strong> or <strong>Tenglish</strong></div>
+                        </div>
+                        <div class="inst-card">
+                            <div class="inst-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+                            <h3>Import SRT in Premiere</h3>
+                            <p>In Adobe Premiere Pro: File → Import → select your .srt file. Drag it onto your timeline above the video track. Captions sync automatically.</p>
+                            <div class="example">Works in <strong>Premiere Pro, CapCut, DaVinci Resolve</strong></div>
+                        </div>
+                        <div class="inst-card">
+                            <div class="inst-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                            <h3>3 words per caption</h3>
+                            <p>SAYCAP automatically groups captions into 3-word blocks. This matches the rhythm of how people read subtitles and is the industry standard for short-form video.</p>
+                            <div class="example">Optimized for <strong>Reels, Shorts, YouTube</strong></div>
+                        </div>
+                    </div>
+                    <div class="inst-tip">
+                        <div class="tip-icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+                        <p><strong>Pro tip:</strong> For Telugu content with English mixed in, use <strong>Tenglish mode</strong>. It keeps Telugu words in Telugu script and English words in English — exactly how your audience naturally reads mixed-language content.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ERROR MODAL -->
+<div class="modal-wrap" id="modal-wrap">
+    <div class="modal">
+        <div class="modal-icon-wrap">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <p class="modal-title" id="modal-title">Something went wrong</p>
+        <p class="modal-msg" id="modal-msg">Please try again.</p>
+        <button class="modal-btn" id="modal-btn">Got it</button>
+    </div>
+</div>
+
+<!-- HISTORY MODAL -->
+<div class="modal-wrap" id="history-modal-wrap">
+    <div class="modal history-modal">
+        <div class="history-header">
+            <h2>My Captions History</h2>
+            <button class="close-history-btn" id="close-history-btn">✕</button>
+        </div>
+        <ul class="history-list" id="history-list"></ul>
+    </div>
+</div>
+
+<script>
+/* ── SUPABASE ── */
+const supabaseUrl = 'https://mfvivqwqfulzcvbrkmxc.supabase.co';
+const supabaseKey = 'sb_publishable_Jr18oByoEAvwRLxvrnLP3g_TfkgyJcy';
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+/* ── BACKEND URL ── */
+const CLOUD_FUNCTION_URL = 'https://saycap-backend-07044d43d3c9.herokuapp.com/generate';
+
+/* ── AUTH ── */
+const loginBtn       = document.getElementById('login-btn');
+const profileWrap    = document.getElementById('profile-wrap');
+const profilePic     = document.getElementById('profile-pic');
+const profileMenu    = document.getElementById('profile-menu');
+const menuLogoutBtn  = document.getElementById('menu-logout-btn');
+const menuHistoryBtn = document.getElementById('menu-history-btn');
+let userSessionToken = null;
+
+function updateAuthUI(session) {
+    if (session) {
+        userSessionToken = session.access_token;
+        loginBtn.style.display = 'none';
+        profileWrap.style.display = 'block';
+        profilePic.src = session.user.user_metadata.avatar_url || '';
+    } else {
+        userSessionToken = null;
+        loginBtn.style.display = 'flex';
+        profileWrap.style.display = 'none';
+        profileMenu.classList.remove('show');
+    }
+}
+
+// onAuthStateChange registered FIRST — catches token from URL hash after OAuth redirect
+supabaseClient.auth.onAuthStateChange((_e, session) => {
+    updateAuthUI(session);
+});
+// Then get existing session (also triggers URL hash parsing on redirect)
+supabaseClient.auth.getSession().then(({ data: { session } }) => {
+    if (session) updateAuthUI(session);
+});
+loginBtn.addEventListener('click', () => supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: 'https://saycap1.netlify.app' }
+}));
+document.getElementById('user-profile').addEventListener('click', e => { e.stopPropagation(); profileMenu.classList.toggle('show'); });
+document.addEventListener('click', () => profileMenu.classList.remove('show'));
+menuLogoutBtn.addEventListener('click', async () => { if (confirm('Sign out of SAYCAP?')) await supabaseClient.auth.signOut(); });
+
+/* ── HISTORY ── */
+const historyModalWrap = document.getElementById('history-modal-wrap');
+const historyList      = document.getElementById('history-list');
+menuHistoryBtn.addEventListener('click', () => { historyModalWrap.classList.add('show'); loadHistory(); });
+document.getElementById('close-history-btn').addEventListener('click', () => historyModalWrap.classList.remove('show'));
+historyModalWrap.addEventListener('click', e => { if (e.target === historyModalWrap) historyModalWrap.classList.remove('show'); });
+
+async function loadHistory() {
+    historyList.innerHTML = "<li style='padding:20px;text-align:center;color:var(--text-3);font-weight:700;'>Loading...</li>";
+    try {
+        const { data: userData } = await supabaseClient.auth.getUser();
+        if (!userData?.user) return;
+        const { data: captions, error } = await supabaseClient.from('captions').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        historyList.innerHTML = '';
+        if (!captions || captions.length === 0) {
+            historyList.innerHTML = "<li style='padding:20px;text-align:center;color:var(--text-3);font-weight:700;'>No captions saved yet.</li>";
+            return;
+        }
+        captions.forEach(cap => {
+            const li = document.createElement('li');
+            li.className = 'history-item';
+            li.innerHTML = `<div class="history-item-info"><span class="history-item-name">${cap.file_name}</span><span class="history-item-date">Generated on ${new Date(cap.created_at).toLocaleDateString()}</span></div><button class="history-dl-btn" onclick="downloadOldCaption('${cap.id}')">Download</button><div id="hidden_srt_${cap.id}" style="display:none;">${cap.srt_content}</div>`;
+            historyList.appendChild(li);
+        });
+    } catch (err) {
+        historyList.innerHTML = "<li style='padding:20px;text-align:center;color:var(--amber);font-weight:700;'>Failed to load history.</li>";
+    }
+}
+
+function downloadOldCaption(id) {
+    const txt = document.getElementById('hidden_srt_' + id).innerText;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }));
+    a.download = 'saycap_' + id + '.srt';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+/* ── LANGUAGE DATA ── */
+const langData = {
+    'Telugu':     { code:'te-IN', tx:'Tenglish',  txDesc:'Telugu words stay in Telugu script. English words stay in English. The most authentic output for Telugu+English audio.', txEg:'"నేను recently ఒక interview attend చేశాను"', phEg:'"నమస్తే అందరికీ" → "Namaste andariki"', naEg:'"Hello everyone" → "హలో అందరికీ"' },
+    'Hindi':      { code:'hi-IN', tx:'Hinglish',  txDesc:'Hindi words stay in Hindi script. English words stay in English. The most authentic output for Hindi+English audio.',   txEg:'"मैं recently एक interview attend किया"',    phEg:'"नमस्ते सबको" → "Namaste sabko"',         naEg:'"Hello everyone" → "नमस्ते सबको"' },
+    'Tamil':      { code:'ta-IN', tx:'Tanglish',  txDesc:'Tamil words stay in Tamil script. English words stay in English. The most authentic output for Tamil+English audio.',   txEg:'"நான் recently ஒரு interview attend பண்ணினேன்"', phEg:'"வணக்கம்" → "Vanakkam"',           naEg:'"Hello" → "வணக்கம்"' },
+    'Kannada':    { code:'kn-IN', tx:'Kanglish',  txDesc:'Kannada words stay in Kannada script. English words stay in English.',                                                   txEg:'"ನಾನು recently interview attend ಮಾಡಿದೆ"',  phEg:'"ನಮಸ್ಕಾರ" → "Namaskara"',                naEg:'"Hello" → "ನಮಸ್ಕಾರ"' },
+    'Malayalam':  { code:'ml-IN', tx:'Manglish',  txDesc:'Malayalam words stay in Malayalam script. English words stay in English.',                                               txEg:'"ഞാൻ recently interview attend ചെയ്തു"',   phEg:'"നമസ്കാരം" → "Namaskaram"',              naEg:'"Hello" → "നമസ്കാരം"' },
+    'Marathi':    { code:'mr-IN', tx:'Minglish',  txDesc:'Marathi words stay in Marathi script. English words stay in English.',                                                   txEg:'"मी recently interview attend केला"',        phEg:'"नमस्कार" → "Namaskar"',                 naEg:'"Hello" → "नमस्कार"' },
+    'Bengali':    { code:'bn-IN', tx:'Benglish',  txDesc:'Bengali words stay in Bengali script. English words stay in English.',                                                   txEg:'"আমি recently interview attend করেছি"',     phEg:'"নমস্কার" → "Namaskar"',                 naEg:'"Hello" → "নমস্কার"' },
+    'Gujarati':   { code:'gu-IN', tx:'Gujlish',   txDesc:'Gujarati words stay in Gujarati script. English words stay in English.',                                                 txEg:'"હું recently interview attend કર્યો"',      phEg:'"નમસ્તે" → "Namaste"',                   naEg:'"Hello" → "નમસ્તે"' },
+    'Punjabi':    { code:'pa-IN', tx:'Punglish',  txDesc:'Punjabi words stay in Punjabi script. English words stay in English.',                                                   txEg:'"ਮੈਂ recently interview attend ਕੀਤਾ"',     phEg:'"ਸਤ ਸ੍ਰੀ ਅਕਾਲ" → "Sat Sri Akal"',       naEg:'"Hello" → "ਸਤ ਸ੍ਰੀ ਅਕਾਲ"' },
+    'Odia':       { code:'od-IN', tx:'Odlish',    txDesc:'Odia words stay in Odia script. English words stay in English.',                                                        txEg:'"ମୁଁ recently interview attend କଲି"',      phEg:'"ନମସ୍କାର" → "Namaskar"',                naEg:'"Hello" → "ନମସ୍କାର"' },
+    'English':    { code:'en-IN', tx:'English (IN)', txDesc:'Indian-accented English preserved accurately with proper formatting and number normalization.',                      txEg:'"Yaar, this is simply not done, okay?"',   phEg:'"Hello everyone" → "Hello everyone"',    naEg:'"Hello everyone" → "Hello everyone"' }
+};
+
+/* ── WIZARD STATE ── */
+let selectedFile     = null;
+let selectedLang     = 'Telugu';
+let selectedLangCode = 'te-IN';
+let selectedMode     = 'phonetic';
+let selectedModeName = 'Phonetic';
+let currentStep      = 1;
+
+/* ── WIZARD NAVIGATION ── */
+function wizGoTo(step) {
+    if (step === 1 && !selectedFile && currentStep !== 1) { step = 1; }
+    currentStep = step;
+
+    for (let i = 1; i <= 4; i++) {
+        const ws = document.getElementById('ws' + i);
+        const wd = document.getElementById('wd' + i);
+        const wp = document.getElementById('wp' + i);
+        const wc = document.getElementById('wc' + i);
+
+        ws.className = 'wiz-step' + (i === step ? ' active' : i < step ? ' done' : '');
+        wd.textContent = i < step ? '✓' : i;
+        wp.className = 'wiz-panel' + (i === step ? ' active' : '');
+        if (wc) wc.className = 'wiz-connector' + (i < step ? ' done' : '');
+    }
+
+    // Update confirm panel
+    if (step === 4) {
+        document.getElementById('cv-file').textContent = selectedFile ? selectedFile.name : '—';
+        document.getElementById('cv-lang').textContent = selectedLang;
+        document.getElementById('cv-mode').textContent = selectedModeName;
+    }
+}
+
+/* ── FILE HANDLING ── */
+const fileInput  = document.getElementById('file-input');
+const dropZone   = document.getElementById('drop-zone');
+const uploadNext = document.getElementById('upload-next-btn');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!['.mp3','.m4a'].includes(ext)) { showModal('Unsupported Format', 'Please upload an MP3 or M4A audio file only.'); return; }
+    if (file.size > 500 * 1024 * 1024) { showModal('File Too Large', 'Your file is over 500MB. Please split it and try again.'); return; }
+    selectedFile = file;
+    const sizeMB = (file.size / (1024*1024)).toFixed(1);
+    dropZone.classList.add('has-file');
+    document.getElementById('upload-title').innerHTML = file.name;
+    document.getElementById('upload-sub').textContent = sizeMB + ' MB · Click to change file';
+    document.getElementById('wv1').textContent = file.name.length > 18 ? file.name.substring(0,18) + '…' : file.name;
+    uploadNext.disabled = false;
+}
+
+/* ── LANGUAGE SELECTION ── */
+function selLang(el, name, code, script) {
+    selectedLang = name;
+    selectedLangCode = code;
+    document.querySelectorAll('#lang-grid .lang-card').forEach(c => c.classList.remove('sel'));
+    el.classList.add('sel');
+    document.getElementById('wv2').textContent = name;
+    document.getElementById('cv-lang').textContent = name;
+
+    const d = langData[name] || langData['Telugu'];
+    const mixName = d.tx;
+
+    document.getElementById('mn-codemix').textContent = mixName;
+    document.getElementById('md-codemix').textContent = d.txDesc;
+    document.getElementById('me-codemix').textContent = d.txEg;
+    document.getElementById('me-phonetic').textContent = d.phEg;
+    document.getElementById('me-transcribe').textContent = d.naEg;
+
+    if (selectedMode === 'codemix') selectedModeName = mixName;
+    document.getElementById('cv-mode').textContent = selectedModeName;
+    document.getElementById('wv3').textContent = selectedModeName;
+}
+
+/* ── MODE SELECTION ── */
+function selMode(el, mode) {
+    selectedMode = mode;
+    document.querySelectorAll('#mode-list .mode-card').forEach(c => c.classList.remove('sel'));
+    el.classList.add('sel');
+    selectedModeName = el.querySelector('.mode-name').textContent;
+    document.getElementById('wv3').textContent = selectedModeName;
+    document.getElementById('cv-mode').textContent = selectedModeName;
+}
+
+/* ── PROCESSING ANIMATION ── */
+function animateSteps() {
+    const steps = ['step-1','step-2','step-3','step-4'];
+    document.querySelectorAll('.proc-step').forEach(s => s.classList.remove('active','done'));
+    document.getElementById(steps[0]).classList.add('active');
+    let i = 1;
+    const interval = setInterval(() => {
+        if (i <= steps.length) {
+            if (i > 0) { document.getElementById(steps[i-1]).classList.remove('active'); document.getElementById(steps[i-1]).classList.add('done'); }
+            if (i < steps.length) document.getElementById(steps[i]).classList.add('active');
+            i++;
+        } else { clearInterval(interval); }
+    }, 4000);
+    return interval;
+}
+
+/* ── GENERATE ── */
+let isProcessing = false;
+document.getElementById('gen-btn').addEventListener('click', async () => {
+    if (!userSessionToken) { showModal('Login Required', 'Please log in with Google to generate captions.'); return; }
+    if (!selectedFile) { showModal('No File', 'Please upload an audio file first.'); return; }
+    if (isProcessing) return;
+
+    isProcessing = true;
+    document.getElementById('upload-view').style.display = 'none';
+    document.getElementById('processing-view').style.display = 'flex';
+    document.getElementById('results-view').style.display = 'none';
+
+    const stepInterval = animateSteps();
+
+    try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('fileName', selectedFile.name);
+        formData.append('sourceLanguage', selectedLangCode);
+        formData.append('translationFormat', selectedMode);
+
+        const result = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', CLOUD_FUNCTION_URL, true);
+            xhr.setRequestHeader('Authorization', `Bearer ${userSessionToken}`);
+            xhr.timeout = 600000;
+            xhr.onload = () => resolve({ status: xhr.status, body: xhr.responseText });
+            xhr.onerror = () => reject(new Error('CONNECTION_FAILED'));
+            xhr.ontimeout = () => reject(new Error('TIMEOUT'));
+            xhr.send(formData);
+        });
+
+        clearInterval(stepInterval);
+
+        if (result.status !== 200) {
+            resetToUpload();
+            handleError(result.status, result.body);
+            return;
+        }
+
+        document.getElementById('caption-output').value = result.body;
+        document.getElementById('processing-view').style.display = 'none';
+        document.getElementById('results-view').style.display = 'flex';
+        isProcessing = false;
+
+    } catch (err) {
+        clearInterval(stepInterval);
+        resetToUpload();
+        if (err.message === 'TIMEOUT') showModal('Processing Timeout', 'This file took too long. Please try a shorter clip.');
+        else showModal('Connection Error', 'Could not reach the server. Please check your internet and try again.');
+    }
+});
+
+function resetToUpload() {
+    document.getElementById('processing-view').style.display = 'none';
+    document.getElementById('upload-view').style.display = 'block';
+    isProcessing = false;
+    wizGoTo(1);
+}
+
+function handleError(status, msg) {
+    if (status === 413 || msg.includes('large'))     showModal('File Too Large', 'Your file is too large. Please try a shorter clip.');
+    else if (status === 422 || msg.includes('EMPTY')) showModal('No Speech Detected', 'No clear speech detected. Check your audio has minimal background noise.');
+    else if (status === 429 || msg.includes('QUOTA')) showModal('Service Busy', 'The service is temporarily at capacity. Please wait a moment and try again.');
+    else if (status === 401 || status === 403)         showModal('Access Denied', 'Authentication failed. Please sign out fully, sign back in, and try again.');
+    else if (msg.includes('TIMEOUT'))                  showModal('Processing Timeout', 'Processing took too long. Please try a shorter clip.');
+    else                                               showModal('Something Went Wrong', 'An unexpected error occurred. Please try again.');
+}
+
+/* ── DOWNLOAD & RESET ── */
+document.getElementById('download-btn').addEventListener('click', () => {
+    const txt = document.getElementById('caption-output').value;
+    const fname = (selectedFile ? selectedFile.name.replace(/\.[^.]+$/, '') : 'captions') + '.srt';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
+    a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+    selectedFile = null;
+    fileInput.value = '';
+    document.getElementById('caption-output').value = '';
+    dropZone.classList.remove('has-file');
+    document.getElementById('upload-title').innerHTML = '<em>Click to upload</em> or drag & drop';
+    document.getElementById('upload-sub').textContent = 'Your audio stays private and is deleted from our servers immediately after processing.';
+    document.getElementById('wv1').textContent = 'No file yet';
+    uploadNext.disabled = true;
+    document.getElementById('results-view').style.display = 'none';
+    document.getElementById('upload-view').style.display = 'block';
+    wizGoTo(1);
+});
+
+/* ── INSTRUCTIONS TOGGLE ── */
+document.getElementById('inst-toggle').addEventListener('click', function() {
+    this.classList.toggle('open');
+    document.getElementById('inst-panel').classList.toggle('open');
+});
+
+/* ── MODAL ── */
+const modalWrap  = document.getElementById('modal-wrap');
+const modalTitle = document.getElementById('modal-title');
+const modalMsg   = document.getElementById('modal-msg');
+function showModal(title, msg) { modalTitle.textContent = title; modalMsg.textContent = msg; modalWrap.classList.add('show'); }
+document.getElementById('modal-btn').addEventListener('click', () => modalWrap.classList.remove('show'));
+modalWrap.addEventListener('click', e => { if (e.target === modalWrap) modalWrap.classList.remove('show'); });
+</script>
+</body>
+</html>

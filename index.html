@@ -950,7 +950,7 @@ supabaseClient.auth.getSession().then(({ data: { session } }) => {
 });
 loginBtn.addEventListener('click', () => supabaseClient.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: 'https://saycap1.netlify.app' }
+    options: { redirectTo: 'https://saycap4.netlify.app' }
 }));
 document.getElementById('user-profile').addEventListener('click', e => { e.stopPropagation(); profileMenu.classList.toggle('show'); });
 document.addEventListener('click', () => profileMenu.classList.remove('show'));
@@ -1137,7 +1137,7 @@ document.getElementById('gen-btn').addEventListener('click', async () => {
 
         const result = await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
-            xhr.open('POST', CLOUD_FUNCTION_URL, true);
+            xhr.open('POST', CLOUD_FUNCTION_URL + '/generate', true);
             xhr.setRequestHeader('Authorization', `Bearer ${userSessionToken}`);
             xhr.timeout = 600000;
             xhr.onload = () => resolve({ status: xhr.status, body: xhr.responseText });

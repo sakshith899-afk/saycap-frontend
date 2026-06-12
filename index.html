@@ -7,7 +7,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js" crossorigin="anonymous"></script>
+    <script
+        data-clerk-publishable-key="pk_test_YXNzdXJpbmctbWFybW9zZXQtODQuY2xlcmsuYWNjb3VudHMuZGV2JA"
+        src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+        type="text/javascript"
+        crossorigin="anonymous"
+    ></script>
     <style>
         :root {
             --bg: #F5F3EE;
@@ -978,8 +983,7 @@
 </div>
 
 <script>
-/* ── CLERK CONFIG ── */
-const CLERK_PUBLISHABLE_KEY = 'pk_test_YXNzdXJpbmctbWFybW9zZXQtODQuY2xlcmsuYWNjb3VudHMuZGV2JA';
+/* ── CLERK CONFIG — key is on the <script> data-clerk-publishable-key attribute ── */
 
 /* ── BACKEND URL ── */
 const CLOUD_FUNCTION_URL = 'https://api.server.unikbiz.com';
@@ -996,8 +1000,8 @@ let userSessionToken = null;
 let userCredits      = 0;
 
 async function getToken() {
-    if (!window._clerk?.session) return null;
-    return await window._clerk.session.getToken();
+    if (!window.Clerk?.session) return null;
+    return await window.Clerk.session.getToken();
 }
 
 async function refreshCredits() {
@@ -1043,16 +1047,15 @@ function handleSignedOut() {
     profileMenu.classList.remove('show');
 }
 
-(async () => {
-    const clerk = new window.Clerk(CLERK_PUBLISHABLE_KEY);
-    window._clerk = clerk;
-    await clerk.load();
-    clerk.addListener(({ user }) => {
+window.addEventListener('load', async () => {
+    await window.Clerk.load();
+    window._clerk = window.Clerk;
+    window.Clerk.addListener(({ user }) => {
         if (user) handleSignedIn(user);
         else handleSignedOut();
     });
-    if (clerk.user) await handleSignedIn(clerk.user);
-})();
+    if (window.Clerk.user) await handleSignedIn(window.Clerk.user);
+});
 
 loginBtn.addEventListener('click', () => window._clerk?.openSignIn());
 document.getElementById('user-profile').addEventListener('click', e => { e.stopPropagation(); profileMenu.classList.toggle('show'); });

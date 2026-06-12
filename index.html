@@ -512,7 +512,32 @@
             h1 { font-size: 2.8rem; }
             .inst-grid { grid-template-columns: 1fr; }
             .instructions-inner { padding: 24px 20px; }
+            .density-row { flex-wrap: wrap; }
         }
+
+        /* ── CAPTION DENSITY ── */
+        .density-section { margin-top: 22px; margin-bottom: 4px; }
+        .density-label { font-size: 0.72rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 10px; }
+        .density-row { display: flex; gap: 8px; }
+        .density-btn {
+            flex: 1;
+            padding: 10px 8px;
+            background: var(--surface-2);
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: var(--text-2);
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: center;
+            line-height: 1.3;
+        }
+        .density-btn:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-light); }
+        .density-btn.sel { background: var(--amber-light); border-color: var(--amber); color: var(--amber); }
+        .density-btn .db-title { display: block; font-size: 0.82rem; }
+        .density-btn .db-sub { display: block; font-size: 0.66rem; font-weight: 600; color: inherit; opacity: 0.75; margin-top: 2px; }
     </style>
 </head>
 <body>
@@ -734,6 +759,29 @@
                                 </div>
 
                             </div>
+
+                            <div class="density-section">
+                                <div class="density-label">Caption density</div>
+                                <div class="density-row">
+                                    <button class="density-btn" onclick="selDensity(this,1)">
+                                        <span class="db-title">1 word</span>
+                                        <span class="db-sub">One word per line</span>
+                                    </button>
+                                    <button class="density-btn" onclick="selDensity(this,2)">
+                                        <span class="db-title">2 words</span>
+                                        <span class="db-sub">Two words per line</span>
+                                    </button>
+                                    <button class="density-btn sel" onclick="selDensity(this,3)">
+                                        <span class="db-title">3 words</span>
+                                        <span class="db-sub">Default, most common</span>
+                                    </button>
+                                    <button class="density-btn" onclick="selDensity(this,0)">
+                                        <span class="db-title">Natural</span>
+                                        <span class="db-sub">Breaks at speech pauses</span>
+                                    </button>
+                                </div>
+                            </div>
+
                             <div class="btn-row">
                                 <button class="wiz-back-btn" onclick="wizGoTo(2)">← Back</button>
                                 <button class="wiz-next-btn" onclick="wizGoTo(4)">Continue →</button>
@@ -768,9 +816,10 @@
                                     </div>
                                 </div>
                                 <div class="confirm-row">
-                                    <span class="confirm-key">Output format</span>
+                                    <span class="confirm-key">Caption density</span>
                                     <div class="confirm-right">
-                                        <span class="confirm-val">SRT — 3 words per caption</span>
+                                        <span class="confirm-val" id="cv-density">3 words per caption</span>
+                                        <button class="confirm-edit" onclick="wizGoTo(3)">edit</button>
                                     </div>
                                 </div>
                             </div>
@@ -1015,6 +1064,8 @@ let selectedLang     = 'Telugu';
 let selectedLangCode = 'te-IN';
 let selectedMode     = 'phonetic';
 let selectedModeName = 'Phonetic';
+let selectedDensity  = 3;
+let selectedDensityLabel = '3 words per caption';
 let currentStep      = 1;
 
 /* ── WIZARD NAVIGATION ── */
@@ -1098,6 +1149,16 @@ function selMode(el, mode) {
     document.getElementById('cv-mode').textContent = selectedModeName;
 }
 
+/* ── DENSITY SELECTION ── */
+const densityLabels = { 0: 'Natural (speech pauses)', 1: '1 word per caption', 2: '2 words per caption', 3: '3 words per caption' };
+function selDensity(el, val) {
+    selectedDensity = val;
+    selectedDensityLabel = densityLabels[val];
+    document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('sel'));
+    el.classList.add('sel');
+    document.getElementById('cv-density').textContent = selectedDensityLabel;
+}
+
 /* ── PROCESSING ANIMATION ── */
 function animateSteps() {
     const steps = ['step-1','step-2','step-3','step-4'];
@@ -1134,6 +1195,7 @@ document.getElementById('gen-btn').addEventListener('click', async () => {
         formData.append('fileName', selectedFile.name);
         formData.append('sourceLanguage', selectedLangCode);
         formData.append('translationFormat', selectedMode);
+        formData.append('wordsPerCaption', String(selectedDensity));
 
         const result = await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();

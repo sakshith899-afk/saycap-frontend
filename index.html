@@ -1057,10 +1057,10 @@ window.addEventListener('load', async () => {
     if (window.Clerk.user) await handleSignedIn(window.Clerk.user);
 });
 
-loginBtn.addEventListener('click', () => window._clerk?.openSignIn());
+loginBtn.addEventListener('click', () => window.Clerk?.redirectToSignIn({ redirectUrl: window.location.href }));
 document.getElementById('user-profile').addEventListener('click', e => { e.stopPropagation(); profileMenu.classList.toggle('show'); });
 document.addEventListener('click', () => profileMenu.classList.remove('show'));
-menuLogoutBtn.addEventListener('click', async () => { if (confirm('Sign out of SAYCAP?')) await window._clerk?.signOut(); });
+menuLogoutBtn.addEventListener('click', async () => { if (confirm('Sign out of SAYCAP?')) await window.Clerk?.signOut(() => window.location.reload()); });
 
 /* ── HISTORY ── */
 const historyModalWrap = document.getElementById('history-modal-wrap');

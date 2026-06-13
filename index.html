@@ -1277,6 +1277,7 @@ document.getElementById('gen-btn').addEventListener('click', async () => {
         if (result.status !== 200) {
             resetToUpload();
             handleError(result.status, result.body);
+            refreshCredits();  // resync badge (e.g. after a failed job was refunded)
             return;
         }
 

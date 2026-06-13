@@ -455,6 +455,24 @@
         .success-badge { display: flex; align-items: center; gap: 8px; padding: 8px 18px; background: var(--teal-light); border: 1.5px solid rgba(61,122,110,0.3); border-radius: 99px; font-size: 0.78rem; font-weight: 900; color: var(--teal); letter-spacing: 0.06em; text-transform: uppercase; animation: popIn 0.5s cubic-bezier(0.16,1,0.3,1); }
         .success-badge svg { width: 16px; height: 16px; stroke: var(--teal); fill: none; stroke-width: 2.5; }
         .results-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 700; color: var(--text-1); }
+        /* ── Video preview + caption overlay ── */
+        .video-preview { display: flex; flex-direction: column; gap: 14px; }
+        .video-stage { position: relative; width: 100%; background: #000; border-radius: 14px; overflow: hidden; line-height: 0; }
+        .video-stage video { width: 100%; max-height: 56vh; display: block; background: #000; }
+        .caption-overlay { position: absolute; left: 50%; bottom: 9%; transform: translateX(-50%);
+            max-width: 92%; text-align: center; pointer-events: none;
+            font-family: 'Noto Sans Telugu', sans-serif; font-weight: 700;
+            font-size: clamp(16px, 3.4vw, 30px); line-height: 1.25; color: #fff;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.95), 0 0 2px rgba(0,0,0,0.9);
+            white-space: pre-line; }
+        .caption-overlay:empty { display: none; }
+        .font-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .font-bar-label { font-family: 'Nunito', sans-serif; font-size: 0.82rem; font-weight: 800; color: var(--text-2); }
+        .font-select { font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 700; color: var(--text-1);
+            background: rgba(255,255,255,0.8); border: 1.5px solid var(--border); border-radius: 10px;
+            padding: 8px 14px; cursor: pointer; outline: none; transition: border-color 0.2s ease; }
+        .font-select:hover, .font-select:focus { border-color: var(--amber); }
+        .font-note { font-family: 'Nunito', sans-serif; font-size: 0.74rem; color: var(--text-3); }
         .srt-preview { background: #1A1916; border-radius: 14px; padding: 20px; position: relative; overflow: hidden; }
         .srt-preview::before { content: 'SRT'; position: absolute; top: 12px; right: 16px; font-size: 0.65rem; font-weight: 900; letter-spacing: 0.1em; color: rgba(255,255,255,0.2); }
         textarea { width: 100%; height: 200px; background: transparent; border: none; font-family: 'Courier New', monospace; font-size: 0.82rem; color: #C4A882; line-height: 1.8; resize: none; outline: none; }
@@ -639,8 +657,16 @@
                         <div class="wiz-step" id="ws4" onclick="wizGoTo(4)">
                             <div class="wiz-dot" id="wd4">4</div>
                             <div class="wiz-step-info">
+                                <div class="wiz-step-label">Caption density</div>
+                                <div class="wiz-step-val" id="wv4">3 words</div>
+                            </div>
+                        </div>
+                        <div class="wiz-connector" id="wc4"></div>
+                        <div class="wiz-step" id="ws5" onclick="wizGoTo(5)">
+                            <div class="wiz-dot" id="wd5">5</div>
+                            <div class="wiz-step-info">
                                 <div class="wiz-step-label">Generate</div>
-                                <div class="wiz-step-val" id="wv4">Review & go</div>
+                                <div class="wiz-step-val" id="wv5">Review & go</div>
                             </div>
                         </div>
                     </div>
@@ -650,11 +676,11 @@
 
                         <!-- PANEL 1: UPLOAD -->
                         <div class="wiz-panel active" id="wp1">
-                            <div class="panel-step-num">Step 1 of 4</div>
-                            <div class="panel-title">Upload your audio</div>
-                            <div class="panel-sub">Drop an MP3 or M4A file. Up to 500MB. Long files are split automatically — no manual trimming needed.</div>
+                            <div class="panel-step-num">Step 1 of 5</div>
+                            <div class="panel-title">Upload your audio or video</div>
+                            <div class="panel-sub">Drop an MP3 / M4A audio file or an MP4 / MOV video. Up to 1GB. Long files are split automatically — no manual trimming needed.</div>
                             <label class="upload-zone" id="drop-zone">
-                                <input type="file" id="file-input" accept=".mp3,.m4a,audio/mpeg,audio/mp4">
+                                <input type="file" id="file-input" accept=".mp3,.m4a,.mp4,.mov,.m4v,audio/mpeg,audio/mp4,video/mp4,video/quicktime">
                                 <div class="upload-icon-wrap">
                                     <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                                 </div>
@@ -665,7 +691,9 @@
                                 <div class="upload-pills">
                                     <span class="upload-pill">MP3</span>
                                     <span class="upload-pill">M4A</span>
-                                    <span class="upload-pill">Up to 500MB</span>
+                                    <span class="upload-pill">MP4</span>
+                                    <span class="upload-pill">MOV</span>
+                                    <span class="upload-pill">Up to 1GB</span>
                                 </div>
                             </label>
                             <button class="wiz-next-btn" id="upload-next-btn" onclick="wizGoTo(2)" disabled>Continue →</button>
@@ -673,7 +701,7 @@
 
                         <!-- PANEL 2: LANGUAGE -->
                         <div class="wiz-panel" id="wp2">
-                            <div class="panel-step-num">Step 2 of 4</div>
+                            <div class="panel-step-num">Step 2 of 5</div>
                             <div class="panel-title">What language is spoken?</div>
                             <div class="panel-sub">Select the primary language in your audio. SAYCAP natively handles code-mixed speech — Telugu+English, Hindi+English, and more.</div>
                             <div class="lang-grid" id="lang-grid">
@@ -730,7 +758,7 @@
 
                         <!-- PANEL 3: OUTPUT MODE -->
                         <div class="wiz-panel" id="wp3">
-                            <div class="panel-step-num">Step 3 of 4</div>
+                            <div class="panel-step-num">Step 3 of 5</div>
                             <div class="panel-title">How should captions look?</div>
                             <div class="panel-sub">This controls what language and script your caption text appears in. Every line in the SRT file follows this format.</div>
                             <div class="mode-list" id="mode-list">
@@ -785,8 +813,18 @@
 
                             </div>
 
+                            <div class="btn-row">
+                                <button class="wiz-back-btn" onclick="wizGoTo(2)">← Back</button>
+                                <button class="wiz-next-btn" onclick="wizGoTo(4)">Continue →</button>
+                            </div>
+                        </div>
+
+                        <!-- PANEL 4: CAPTION DENSITY -->
+                        <div class="wiz-panel" id="wp4">
+                            <div class="panel-step-num">Step 4 of 5</div>
+                            <div class="panel-title">How many words per caption?</div>
+                            <div class="panel-sub">This controls how the text is split across caption lines. Fewer words feel snappier for short-form video; "Natural" breaks at the speaker's pauses.</div>
                             <div class="density-section">
-                                <div class="density-label">Caption density</div>
                                 <div class="density-row">
                                     <button class="density-btn" onclick="selDensity(this,1)">
                                         <span class="db-title">1 word</span>
@@ -806,16 +844,15 @@
                                     </button>
                                 </div>
                             </div>
-
                             <div class="btn-row">
-                                <button class="wiz-back-btn" onclick="wizGoTo(2)">← Back</button>
-                                <button class="wiz-next-btn" onclick="wizGoTo(4)">Continue →</button>
+                                <button class="wiz-back-btn" onclick="wizGoTo(3)">← Back</button>
+                                <button class="wiz-next-btn" onclick="wizGoTo(5)">Continue →</button>
                             </div>
                         </div>
 
-                        <!-- PANEL 4: GENERATE -->
-                        <div class="wiz-panel" id="wp4">
-                            <div class="panel-step-num">Step 4 of 4</div>
+                        <!-- PANEL 5: GENERATE -->
+                        <div class="wiz-panel" id="wp5">
+                            <div class="panel-step-num">Step 5 of 5</div>
                             <div class="panel-title">Ready to generate</div>
                             <div class="panel-sub">Review your selections. Everything look right? Hit generate and your SRT file will be ready in moments.</div>
                             <div class="confirm-list">
@@ -844,7 +881,7 @@
                                     <span class="confirm-key">Caption density</span>
                                     <div class="confirm-right">
                                         <span class="confirm-val" id="cv-density">3 words per caption</span>
-                                        <button class="confirm-edit" onclick="wizGoTo(3)">edit</button>
+                                        <button class="confirm-edit" onclick="wizGoTo(4)">edit</button>
                                     </div>
                                 </div>
                             </div>
@@ -853,7 +890,7 @@
                                 Generate captions
                             </button>
                             <div class="btn-row" style="margin-top:10px">
-                                <button class="wiz-back-btn" onclick="wizGoTo(3)">← Back</button>
+                                <button class="wiz-back-btn" onclick="wizGoTo(4)">← Back</button>
                             </div>
                         </div>
 
@@ -886,6 +923,20 @@
                     </div>
                     <p class="results-title">Your .srt file is ready to download</p>
                 </div>
+
+                <!-- Video preview with live caption overlay (shown only for video uploads) -->
+                <div class="video-preview" id="video-preview" style="display:none;">
+                    <div class="video-stage">
+                        <video id="preview-video" controls playsinline></video>
+                        <div class="caption-overlay" id="caption-overlay"></div>
+                    </div>
+                    <div class="font-bar">
+                        <label class="font-bar-label" for="font-select">Caption font</label>
+                        <select id="font-select" class="font-select"></select>
+                        <span class="font-note" id="font-note">Pick a “Noto” font for native-script captions.</span>
+                    </div>
+                </div>
+
                 <div class="srt-preview">
                     <textarea id="caption-output" readonly placeholder="Your SRT captions will appear here…"></textarea>
                 </div>
@@ -1120,6 +1171,9 @@ const langData = {
 
 /* ── WIZARD STATE ── */
 let selectedFile     = null;
+let isVideoFile      = false;
+let videoObjectURL   = null;   // object URL for the in-browser preview; revoked on reset
+let captionCues      = [];     // parsed SRT cues for the preview overlay
 let selectedLang     = 'Telugu';
 let selectedLangCode = 'te-IN';
 let selectedMode     = 'phonetic';
@@ -1133,7 +1187,7 @@ function wizGoTo(step) {
     if (step === 1 && !selectedFile && currentStep !== 1) { step = 1; }
     currentStep = step;
 
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= 5; i++) {
         const ws = document.getElementById('ws' + i);
         const wd = document.getElementById('wd' + i);
         const wp = document.getElementById('wp' + i);
@@ -1146,7 +1200,7 @@ function wizGoTo(step) {
     }
 
     // Update confirm panel
-    if (step === 4) {
+    if (step === 5) {
         document.getElementById('cv-file').textContent = selectedFile ? selectedFile.name : '—';
         document.getElementById('cv-lang').textContent = selectedLang;
         document.getElementById('cv-mode').textContent = selectedModeName;
@@ -1163,17 +1217,128 @@ dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-ove
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
 
+const AUDIO_EXTS = ['.mp3','.m4a'];
+const VIDEO_EXTS = ['.mp4','.mov','.m4v'];
+
 function handleFile(file) {
     const ext = '.' + file.name.split('.').pop().toLowerCase();
-    if (!['.mp3','.m4a'].includes(ext)) { showModal('Unsupported Format', 'Please upload an MP3 or M4A audio file only.'); return; }
-    if (file.size > 500 * 1024 * 1024) { showModal('File Too Large', 'Your file is over 500MB. Please split it and try again.'); return; }
+    if (![...AUDIO_EXTS, ...VIDEO_EXTS].includes(ext)) { showModal('Unsupported Format', 'Please upload an audio file (MP3, M4A) or a video file (MP4, MOV).'); return; }
+    if (file.size > 1024 * 1024 * 1024) { showModal('File Too Large', 'Your file is over 1GB. Please use a smaller clip and try again.'); return; }
     selectedFile = file;
+    isVideoFile  = VIDEO_EXTS.includes(ext);
     const sizeMB = (file.size / (1024*1024)).toFixed(1);
     dropZone.classList.add('has-file');
     document.getElementById('upload-title').innerHTML = file.name;
-    document.getElementById('upload-sub').textContent = sizeMB + ' MB · Click to change file';
+    document.getElementById('upload-sub').textContent = (isVideoFile ? 'Video · ' : 'Audio · ') + sizeMB + ' MB · Click to change file';
     document.getElementById('wv1').textContent = file.name.length > 18 ? file.name.substring(0,18) + '…' : file.name;
     uploadNext.disabled = false;
+}
+
+/* ── VIDEO PREVIEW + CAPTION OVERLAY ──────────────────────────────────────────
+   Tier-1 preview: the captions are NOT burned into the video. We play the
+   uploaded file locally and draw the active SRT cue over it with CSS, so font
+   changes are instant and cost nothing. The downloadable deliverable is the
+   .srt; a burned-in MP4 export would be a separate server-side step. */
+
+// Fonts grouped by script. Noto faces cover Latin too, so they render mixed
+// (code-mix) output correctly; the Latin display fonts are for phonetic/English
+// output and will show empty boxes if used on a native Indic script.
+const SCRIPT_FONTS = {
+    'te-IN': ['Noto Sans Telugu', 'Noto Serif Telugu'],
+    'hi-IN': ['Noto Sans Devanagari', 'Noto Serif Devanagari'],
+    'mr-IN': ['Noto Sans Devanagari', 'Noto Serif Devanagari'],
+    'ta-IN': ['Noto Sans Tamil', 'Noto Serif Tamil'],
+    'kn-IN': ['Noto Sans Kannada', 'Noto Serif Kannada'],
+    'ml-IN': ['Noto Sans Malayalam', 'Noto Serif Malayalam'],
+    'bn-IN': ['Noto Sans Bengali', 'Noto Serif Bengali'],
+    'gu-IN': ['Noto Sans Gujarati', 'Noto Serif Gujarati'],
+    'pa-IN': ['Noto Sans Gurmukhi'],
+    'od-IN': ['Noto Sans Oriya'],
+    'en-IN': []
+};
+const LATIN_FONTS = ['Inter', 'Poppins', 'Montserrat', 'Oswald', 'Anton'];
+const loadedFonts = new Set();
+
+function loadGoogleFont(name) {
+    if (loadedFonts.has(name)) return;
+    loadedFonts.add(name);
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=' +
+        name.replace(/ /g, '+') + ':wght@400;700&display=swap';
+    document.head.appendChild(link);
+}
+
+// Parse "HH:MM:SS,mmm" -> seconds
+function srtTimeToSec(t) {
+    const m = t.trim().match(/(\d+):(\d+):(\d+)[,.](\d+)/);
+    if (!m) return 0;
+    return (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) + (+m[4]) / 1000;
+}
+
+function parseSRT(srt) {
+    const cues = [];
+    for (const block of srt.replace(/\r/g, '').trim().split(/\n\s*\n/)) {
+        const lines = block.split('\n');
+        const arrowIdx = lines.findIndex(l => l.includes('-->'));
+        if (arrowIdx === -1) continue;
+        const [start, end] = lines[arrowIdx].split('-->');
+        const text = lines.slice(arrowIdx + 1).join('\n').trim();
+        if (!text) continue;
+        cues.push({ start: srtTimeToSec(start), end: srtTimeToSec(end), text });
+    }
+    return cues;
+}
+
+function setupVideoPreview(srt) {
+    captionCues = parseSRT(srt);
+    const wrap    = document.getElementById('video-preview');
+    const video   = document.getElementById('preview-video');
+    const overlay = document.getElementById('caption-overlay');
+    const select  = document.getElementById('font-select');
+
+    if (videoObjectURL) URL.revokeObjectURL(videoObjectURL);
+    videoObjectURL = URL.createObjectURL(selectedFile);
+    video.src = videoObjectURL;
+    overlay.textContent = '';
+    wrap.style.display = 'flex';
+
+    // Build a script-aware font list for the language that was transcribed.
+    const scriptFonts = SCRIPT_FONTS[selectedLangCode] || [];
+    const fonts = [...scriptFonts, ...LATIN_FONTS];
+    select.innerHTML = '';
+    fonts.forEach(f => {
+        loadGoogleFont(f);
+        const opt = document.createElement('option');
+        opt.value = f; opt.textContent = f;
+        select.appendChild(opt);
+    });
+    const defaultFont = fonts[0] || 'sans-serif';
+    select.value = defaultFont;
+    overlay.style.fontFamily = `'${defaultFont}', sans-serif`;
+    document.getElementById('font-note').style.display = scriptFonts.length ? '' : 'none';
+
+    select.onchange = () => {
+        loadGoogleFont(select.value);
+        overlay.style.fontFamily = `'${select.value}', sans-serif`;
+    };
+
+    video.ontimeupdate = () => {
+        const t = video.currentTime;
+        const cue = captionCues.find(c => t >= c.start && t < c.end);
+        overlay.textContent = cue ? cue.text : '';
+    };
+}
+
+function teardownVideoPreview() {
+    const video = document.getElementById('preview-video');
+    video.ontimeupdate = null;
+    video.removeAttribute('src');
+    video.load();
+    if (videoObjectURL) { URL.revokeObjectURL(videoObjectURL); videoObjectURL = null; }
+    captionCues = [];
+    document.getElementById('caption-overlay').textContent = '';
+    document.getElementById('video-preview').style.display = 'none';
 }
 
 /* ── LANGUAGE SELECTION ── */
@@ -1211,11 +1376,13 @@ function selMode(el, mode) {
 
 /* ── DENSITY SELECTION ── */
 const densityLabels = { 0: 'Natural (speech pauses)', 1: '1 word per caption', 2: '2 words per caption', 3: '3 words per caption' };
+const densityShort  = { 0: 'Natural', 1: '1 word', 2: '2 words', 3: '3 words' };
 function selDensity(el, val) {
     selectedDensity = val;
     selectedDensityLabel = densityLabels[val];
     document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('sel'));
     el.classList.add('sel');
+    document.getElementById('wv4').textContent = densityShort[val];
     document.getElementById('cv-density').textContent = selectedDensityLabel;
 }
 
@@ -1277,6 +1444,7 @@ document.getElementById('gen-btn').addEventListener('click', async () => {
         if (result.status !== 200) {
             resetToUpload();
             handleError(result.status, result.body);
+            refreshCredits();  // resync badge (e.g. after a failed job was refunded)
             return;
         }
 
@@ -1285,6 +1453,7 @@ document.getElementById('gen-btn').addEventListener('click', async () => {
         document.getElementById('results-view').style.display = 'flex';
         isProcessing = false;
         refreshCredits();
+        if (isVideoFile) setupVideoPreview(result.body);
 
     } catch (err) {
         clearInterval(stepInterval);
@@ -1295,6 +1464,7 @@ document.getElementById('gen-btn').addEventListener('click', async () => {
 });
 
 function resetToUpload() {
+    teardownVideoPreview();
     document.getElementById('processing-view').style.display = 'none';
     document.getElementById('upload-view').style.display = 'block';
     isProcessing = false;
@@ -1326,7 +1496,9 @@ document.getElementById('download-btn').addEventListener('click', () => {
 });
 
 document.getElementById('reset-btn').addEventListener('click', () => {
+    teardownVideoPreview();
     selectedFile = null;
+    isVideoFile = false;
     fileInput.value = '';
     document.getElementById('caption-output').value = '';
     dropZone.classList.remove('has-file');
